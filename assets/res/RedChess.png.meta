@@ -1,0 +1,31 @@
+{
+  "ver": "2.2.0",
+  "uuid": "2c46f7dd-2d51-4f23-855c-ee91c73b6b30",
+  "type": "sprite",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false,
+  "subMetas": {
+    "RedChess": {
+      "ver": "1.0.3",
+      "uuid": "b485f09f-a339-4799-898f-6e28250ca925",
+      "rawTextureUuid": "2c46f7dd-2d51-4f23-855c-ee91c73b6b30",
+      "trimType": "auto",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": 0,
+      "offsetY": 0,
+      "trimX": 0,
+      "trimY": 0,
+      "width": 25,
+      "height": 25,
+      "rawWidth": 25,
+      "rawHeight": 25,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  }
+}

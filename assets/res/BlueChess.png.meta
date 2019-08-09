@@ -1,0 +1,31 @@
+{
+  "ver": "2.2.0",
+  "uuid": "232b2358-df44-4993-b4aa-b6c764ecfb1c",
+  "type": "sprite",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false,
+  "subMetas": {
+    "BlueChess": {
+      "ver": "1.0.3",
+      "uuid": "42d86200-72f6-46bf-9332-b545fa09bd75",
+      "rawTextureUuid": "232b2358-df44-4993-b4aa-b6c764ecfb1c",
+      "trimType": "auto",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": 0,
+      "offsetY": 0,
+      "trimX": 0,
+      "trimY": 0,
+      "width": 25,
+      "height": 25,
+      "rawWidth": 25,
+      "rawHeight": 25,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  }
+}
