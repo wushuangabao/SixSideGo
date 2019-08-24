@@ -88,6 +88,9 @@ cc.Class({
             tag: 0
         };
         this.gameState = 'blue';
+        this.recordList = []; // 行棋记录
+        this.recordDead = []; // 提子记录
+        this.recordJie = [];  // 劫点记录
     },
 
     // 调整画面宽高
@@ -321,26 +324,40 @@ cc.Class({
         this.listTagNum = new Array();
         var isAlive = this.canPutChess(color, chess);
         if (!isAlive && tiZou) {
-            // 提死子 this.listTagNum
-            console.log('dead list: ', this.listTagNum);
-            let len = this.listTagNum.length;
-            if (len > 0) {
-                for (var i = 0; i < len; i++) {
-                    let chess = this.chessList[this.listTagNum[i]];
-                    this.setChess(chess, 'null');
-                }
-                if (len == 1) {
-                    this.jie.tag += 1;  // 劫的标记+1
-                    this.jie[color] = this.listTagNum[0];
-                }
-            }
+            this.removeDead(color);
         }
         return !isAlive;
     },
 
+    // 提死子，死子储存在 this.listTagNum 中
+    removeDead(color) {
+        let len = this.listTagNum.length;
+        if (len > 0) {
+            for (var i = 0; i < len; i++) {
+                let chess = this.chessList[this.listTagNum[i]];
+                this.setChess(chess, 'null');
+            }
+            // 记录提子信息
+            this.recordDead.push({
+                id: this.recordList.length,
+                list: this.listTagNum
+            });
+            if (len == 1) {
+                this.jie.tag += 1;  // 劫的标记+1
+                this.jie[color] = this.listTagNum[0]; // 设置 color 的劫点位置
+            }
+        }
+    },
+
+    // 根据 str 指示的颜色设置 chess 节点的图片
     setChess(chess, str) {
-        if(!chess)
+        if (!chess)
             return;
+        if (!str) {
+            str = chess.tagColor;
+        } else if (chess.tagColor != str) {
+            chess.tagColor = str;
+        }
         if (str === 'null') {
             if (chess.tagType == 'A') {
                 chess.getComponent(cc.Sprite).spriteFrame = this.nullSpriteFrameA;
@@ -349,6 +366,20 @@ cc.Class({
                 chess.getComponent(cc.Sprite).spriteFrame = this.nullSpriteFrameB;
             }
             chess.tagColor = str;
+        } else if (str === 'red') {
+            if (chess.tagType == 'A') {
+                chess.getComponent(cc.Sprite).spriteFrame = this.redSpriteFrameA;
+            }
+            else {
+                chess.getComponent(cc.Sprite).spriteFrame = this.redSpriteFrameB;
+            }
+        } else if (str === 'blue') {
+            if (chess.tagType == 'A') {
+                chess.getComponent(cc.Sprite).spriteFrame = this.blueSpriteFrameA;
+            }
+            else {
+                chess.getComponent(cc.Sprite).spriteFrame = this.blueSpriteFrameB;
+            }
         }
     },
 
@@ -384,26 +415,21 @@ cc.Class({
     // 落子
     putChess(self) {
         self.tagColor = this.gameState;
-        // case: B型落子
-        if (self.tagType == 'B') {
-            if (this.gameState == 'red') {
-                self.getComponent(cc.Sprite).spriteFrame = this.redSpriteFrameB;
-            } else {
-                self.getComponent(cc.Sprite).spriteFrame = this.blueSpriteFrameB;
-            }
+        this.setChess(self, this.gameState);
+        // 记录劫点信息
+        if (this.jie[this.gameState] != null) {
+            this.recordJie.push({
+                id: this.recordList.length,
+                tagNum: this.jie[this.gameState],
+                color: this.gameState
+            });
         }
-        // case: A型落子
-        else if (self.tagType == 'A') {
-            if (this.gameState == 'red') {
-                self.getComponent(cc.Sprite).spriteFrame = this.redSpriteFrameA;
-            } else {
-                self.getComponent(cc.Sprite).spriteFrame = this.blueSpriteFrameA;
-            }
-        }
+        // 记录行棋位置
+        this.recordList.push(self.tagNum);
         this.changeGameState();
     },
 
-    // 切换颜色
+    // 进入下一轮
     changeGameState() {
         this.jie[this.gameState] = null;  // 劫点清除
         if (this.gameState == 'red') {
@@ -499,13 +525,54 @@ cc.Class({
         }
     },
 
+    // 根据 this.recordJie 和 id 设置劫点
+    resetJie(id) {
+        let rid = this.recordJie.length - 1;
+        if(rid < 0) return;
+        var r = this.recordJie[rid];
+        if (r.id == id) {
+            this.recordJie.pop();
+            this.jie[r.color] = r.tagNum;
+        }
+    },
+
+    // 根据 this.recordDead 和 id 重新放上死子
+    resetDead(id) {
+        let rid = this.recordDead.length - 1;
+        if(rid < 0) return;
+        var r = this.recordDead[rid];
+        if (r.id == id) {
+            this.recordDead.pop();
+            if (id % 2 === 0) var c = 'red';
+            else var c = 'blue';
+            for (var i = 0; i < r.list.length; ++i) {
+                let chess = this.chessList[r.list[i]];
+                chess.tagColor = c;
+                this.setChess(chess);
+            }
+        }
+    },
+
     // 悔棋 - 按钮点击回调函数
     huiqi() {
-        // todo: 发送悔棋的请求给对手
+        // case: 单机
         if (this.danji) {
             // 返回上一步的状态
+            let num = this.recordList.pop();
+            if (num === undefined) return;
+            let chess = this.chessList[num],
+                id = this.recordList.length;
+            chess.tagColor = 'null';
+            this.setChess(chess, 'null');
+            this.resetJie(id);
+            this.resetDead(id);
+            this.changeGameState();
+        }
+        // case: 联机
+        else {
             this.overLabel.string = this.getColorHanZi(this.gameState) + '请求悔棋';
-            this.tagOverLabel = 2; // 显示 2 秒
+            this.tagOverLabel = 2;  // 显示 2 秒
+            // todo: 发送悔棋的请求给对手
         }
     },
 
@@ -553,7 +620,7 @@ cc.Class({
     },
 
     update(dt) {
-        if(this.labelDaoJiShi.string != '')
+        if (this.labelDaoJiShi.string != '')
             this.seconds += dt;
         // 每隔 1 秒
         if (this.seconds >= 1) {
