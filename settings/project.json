@@ -18,12 +18,12 @@
       "enable": false
     }
   },
-  "fit-height": false,
+  "fit-height": true,
   "fit-width": true,
   "group-list": [
     "default"
   ],
-  "last-module-event-record-time": 1566564635232,
+  "last-module-event-record-time": 1567410863871,
   "simulator-orientation": false,
   "simulator-resolution": {
     "height": 640,

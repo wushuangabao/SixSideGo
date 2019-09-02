@@ -353,7 +353,7 @@ cc.Class({
                 lastIdOfDead = this.recordDead.length - 1;
             // 如果提子记录的最后一项的 id 属性正好是当前的 行棋序号(recordId)，说明提子超过一处
             if (this.recordDead[lastIdOfDead] && this.recordDead[lastIdOfDead].id === recordId) {
-                for(i = 0; i < len; ++i)
+                for (i = 0; i < len; ++i)
                     this.recordDead[lastIdOfDead].list.push(this.listTagNum[i]);
             } else {
                 this.recordDead.push({
@@ -550,19 +550,57 @@ cc.Class({
 
     // 判断输赢
     judgeWinner() {
-        var cntRed = 0, cntBlue = 0;
+        var cntRed = 0, cntBlue = 0, cntNull = 0;
+        this.listTagNum = [];  // 清空记录
         for (var i = 0; i < this.chessList.length; ++i) {
             let chess = this.chessList[i];
             if (chess) {
-                // 清除死子
-                if (chess.tagColor == 'red' || chess.tagColor == 'blue') {
-
+                // todo: 清除死子
+                // if (chess.tagColor == 'red') {
+                // }
+                // else if (chess.tagColor == 'blue') {
+                // }
+                // 计算空地大小，并判断其归属 （todo: 公共用地的划分）
+                let colorEnclosure = this.detectEnclosure(chess);
+                if (colorEnclosure == 'red') {
+                    cntRed++;
                 }
-                // 计算空地大小，并判断其归属
-                else {
-
+                else if (colorEnclosure == 'blue') {
+                    cntBlue++;
                 }
             }
+        }
+        this.strOver = '红' + cntRed + '蓝' + cntBlue + '，'
+        if (cntRed > cntBlue)
+            return 'red';
+        else if (cntRed < cntBlue)
+            return 'blue';
+    },
+
+    // 判断某块空地的归属
+    detectEnclosure(chess) {
+        if (this.listTagNum.indexOf(chess.tagNum) != -1)
+            return false;  // 表示这个点已经检测过
+        if (chess.tagColor == 'null') {
+            if (chess.tagNum == 13)
+                console.log(13);
+            this.listTagNum.push(chess.tagNum);
+            // 往三个方向检测
+            let color1 = this.detectEnclosure(this.upDownOf(chess));
+            if (color1 == 'red' || color1 == 'blue') {
+                let color2 = this.detectEnclosure(this.leftOf(chess));
+                if (color1 == color2) {
+                    if (this.detectEnclosure(this.rightOf(chess)) == color1) {
+                        return color1;  // 表示属于 color1 (red or blue)
+                    }
+                }
+            }
+            return 'null';  // 表示没有归属
+        } else if (chess.tagColor == 'red') {
+            return 'red';  // 表示属于 red
+        }
+        else if (chess.tagColor == 'blue') {
+            return 'blue';  // 表示属于 blue
         }
     },
 
@@ -631,7 +669,7 @@ cc.Class({
         this.overLabel.string = this.getColorHanZi(this.gameState) + '停一手';
         this.tagOverLabel = 2; // 显示 2 秒
         if (this.ting[this.fanState()]) {
-            this.judgeWinner();
+            this.gameOver(this.judgeWinner());
         } else {
             this.changeGameState();
         }
@@ -650,7 +688,11 @@ cc.Class({
         if (!color)
             var color = this.judgeWinner();
         this.audioGameOver.play();
-        this.overLabel.string = this.strOver + this.getColorHanZi(color) + '获胜';
+        let colorHanzi = this.getColorHanZi(color);
+        if (colorHanzi == 'null')
+            this.overLabel.string = this.strOver + '双方平局';
+        else
+            this.overLabel.string = this.strOver + colorHanzi + '获胜';
         this.tagOverLabel = 30; // 显示 30 秒
         this.overSprite.x = 0;
         this.labelDaoJiShi.string = '';
