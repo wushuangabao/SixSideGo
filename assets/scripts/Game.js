@@ -50,10 +50,6 @@ cc.Class({
             default: null,
             type: cc.Node
         },
-        daojishi: {
-            default: 30,
-            displayName: "倒计时（秒）"
-        },
         danji: {
             default: true,
             displayName: "是否单机"
@@ -63,13 +59,23 @@ cc.Class({
             type: cc.Node,
             visible: false  // 属性窗口不显示
         },
+        audioButton: {
+            type: cc.AudioSource,
+            default: null
+        },
+        audioChessDown: {
+            type: cc.AudioSource,
+            default: null
+        },
+        audioChessDead: {
+            type: cc.AudioSource,
+            default: null
+        },
+        audioGameOver: {
+            type: cc.AudioSource,
+            default: null
+        }
     },
-
-    // 重新开始
-    startGame() {
-        // cc.director.loadScene("game");
-    },
-
 
     // 初始化游戏参数
     initializeParams() {
@@ -86,6 +92,10 @@ cc.Class({
             red: null,
             blue: null,
             tag: 0
+        };
+        this.ting = {  // 记录停一手
+            red: false,
+            blue: false
         };
         this.gameState = 'blue';
         this.recordList = []; // 行棋记录
@@ -333,15 +343,24 @@ cc.Class({
     removeDead(color) {
         let len = this.listTagNum.length;
         if (len > 0) {
+            this.audioChessDead.play();
             for (var i = 0; i < len; i++) {
                 let chess = this.chessList[this.listTagNum[i]];
                 this.setChess(chess, 'null');
             }
             // 记录提子信息
-            this.recordDead.push({
-                id: this.recordList.length,
-                list: this.listTagNum
-            });
+            let recordId = this.recordList.length,
+                lastIdOfDead = this.recordDead.length - 1;
+            // 如果提子记录的最后一项的 id 属性正好是当前的 行棋序号(recordId)，说明提子超过一处
+            if (this.recordDead[lastIdOfDead] && this.recordDead[lastIdOfDead].id === recordId) {
+                for(i = 0; i < len; ++i)
+                    this.recordDead[lastIdOfDead].list.push(this.listTagNum[i]);
+            } else {
+                this.recordDead.push({
+                    id: recordId,
+                    list: this.listTagNum
+                });
+            }
             if (len == 1) {
                 this.jie.tag += 1;  // 劫的标记+1
                 this.jie[color] = this.listTagNum[0]; // 设置 color 的劫点位置
@@ -414,6 +433,7 @@ cc.Class({
 
     // 落子
     putChess(self) {
+        this.audioChessDown.play();
         self.tagColor = this.gameState;
         this.setChess(self, this.gameState);
         // 记录劫点信息
@@ -440,6 +460,8 @@ cc.Class({
             this.UiDaoJiShi.color = new cc.Color(255, 25, 0);
             this.gameState = 'red'
         }
+        if (this.ting[this.gameState])
+            this.ting[this.gameState] = false;  // 停一手记号清除
         this.labelDaoJiShi.string = "" + this.daojishi;
         this.seconds = 0;
     },
@@ -462,6 +484,7 @@ cc.Class({
     },
 
     onLoad() {
+        this.daojishi = Global.timePerState;
         this.UiDaoJiShi = this.UI2.getChildByName("DaoJiShi");
         this.labelDaoJiShi = this.UiDaoJiShi.getComponent(cc.Label);
         this.initializeParams();
@@ -525,10 +548,28 @@ cc.Class({
         }
     },
 
+    // 判断输赢
+    judgeWinner() {
+        var cntRed = 0, cntBlue = 0;
+        for (var i = 0; i < this.chessList.length; ++i) {
+            let chess = this.chessList[i];
+            if (chess) {
+                // 清除死子
+                if (chess.tagColor == 'red' || chess.tagColor == 'blue') {
+
+                }
+                // 计算空地大小，并判断其归属
+                else {
+
+                }
+            }
+        }
+    },
+
     // 根据 this.recordJie 和 id 设置劫点
     resetJie(id) {
         let rid = this.recordJie.length - 1;
-        if(rid < 0) return;
+        if (rid < 0) return;
         var r = this.recordJie[rid];
         if (r.id == id) {
             this.recordJie.pop();
@@ -539,7 +580,7 @@ cc.Class({
     // 根据 this.recordDead 和 id 重新放上死子
     resetDead(id) {
         let rid = this.recordDead.length - 1;
-        if(rid < 0) return;
+        if (rid < 0) return;
         var r = this.recordDead[rid];
         if (r.id == id) {
             this.recordDead.pop();
@@ -555,6 +596,7 @@ cc.Class({
 
     // 悔棋 - 按钮点击回调函数
     huiqi() {
+        this.audioButton.play();
         // case: 单机
         if (this.danji) {
             // 返回上一步的状态
@@ -584,9 +626,15 @@ cc.Class({
 
     // 停一手 - 按钮点击回调函数
     tingyishou() {
+        this.audioButton.play();
+        this.ting[this.gameState] = true;
         this.overLabel.string = this.getColorHanZi(this.gameState) + '停一手';
         this.tagOverLabel = 2; // 显示 2 秒
-        this.changeGameState();
+        if (this.ting[this.fanState()]) {
+            this.judgeWinner();
+        } else {
+            this.changeGameState();
+        }
     },
 
     getColorHanZi(color) {
@@ -601,6 +649,7 @@ cc.Class({
     gameOver(color) {
         if (!color)
             var color = this.judgeWinner();
+        this.audioGameOver.play();
         this.overLabel.string = this.strOver + this.getColorHanZi(color) + '获胜';
         this.tagOverLabel = 30; // 显示 30 秒
         this.overSprite.x = 0;
@@ -609,12 +658,16 @@ cc.Class({
 
     // 重新开始 - 按钮点击回调函数
     restart() {
-        this.tagOverLabel = 0;
-        this.initializeParams();
-        for (var i = 0; i < this.chessList.length; ++i) {
-            let chess = this.chessList[i];
-            if (chess && chess.tagColor) {
-                this.setChess(chess, 'null');
+        if (true) {
+            cc.director.loadScene("menu");
+        } else {  // case: 不返回初始界面，直接重新开始
+            this.tagOverLabel = 0;
+            this.initializeParams();
+            for (var i = 0; i < this.chessList.length; ++i) {
+                let chess = this.chessList[i];
+                if (chess && chess.tagColor) {
+                    this.setChess(chess, 'null');
+                }
             }
         }
     },
