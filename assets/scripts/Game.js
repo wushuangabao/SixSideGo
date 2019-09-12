@@ -126,12 +126,15 @@ cc.Class({
             // 如果更长，则用定高
             finalH = dr.height;
             finalW = finalH * rw / rh;
+            this.fixHeight = true;
         }
         else {
             // 如果更短，则用定宽
             finalW = dr.width;
             finalH = rh / rw * finalW;
+            this.fixHeight = false;
         }
+        console.log('fixHeight =', this.fixHeight);
         cvs.designResolution = cc.size(finalW, finalH);
         cvs.node.width = finalW;
         cvs.node.height = finalH;
@@ -491,29 +494,17 @@ cc.Class({
         this.resize();
         var self = this,
             sqrt3 = Math.sqrt(3),
-            boardZhanBi = 10 / 11, // 棋盘宽度占画面宽度的比例
-            w0 = this.curDR2.width * boardZhanBi;
+            boardZhanBi = 10 / 11;
+
+        // 屏幕高度小于宽度（在PC上）时
+        var h0 = this.curDR2.height * boardZhanBi,
+            w0 = h0 * sqrt3 * 0.5;
         this.dBorderX = 0.5 * (this.curDR2.width - w0);
-        w0 /= sqrt3;
-        this.dBorderY = 0.5 * this.curDR2.height - w0;
-        this.w = w0 / this.size;
+        this.dBorderY = 0.5 * (this.curDR2.height - h0);
+        this.w = 0.5 * h0 / this.size;
         var scaleNode = this.w / 200,
             dx = this.dBorderX - this.curDR2.width * 0.5,
-            dy = this.dBorderY - this.curDR2.height * 0.5;
-
-        // 调整棋盘边界的位置
-        var borderW = this.size * this.w,
-            nodeBorder = this.node.getChildByName("Border");
-        nodeBorder.setPosition(dx + 0.5 * sqrt3 * borderW, dy + borderW);
-        // 落子点格子与边界的错位修正值
-        dy += 7;
-
-        // 设置 UI 的位置等
-        // todo: 考虑屏幕宽度大于高度的情形
-        var yUi = (this.curDR2.height + borderW) * 0.33333;
-        this.UI1.setPosition(0, -yUi);
-        this.UI2.setPosition(0, yUi);
-        this.labelDaoJiShi.string = "" + this.daojishi;
+            dy = this.dBorderY - this.curDR2.height * 0.5 + 6.8;
 
         // 初始化棋盘上的点，并为每个节点添加事件
         this.chessList = new Array();

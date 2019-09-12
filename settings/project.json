@@ -5,8 +5,8 @@
       true
     ]
   ],
-  "design-resolution-height": 960,
-  "design-resolution-width": 640,
+  "design-resolution-height": 640,
+  "design-resolution-width": 960,
   "excluded-modules": [],
   "facebook": {
     "appID": "",
@@ -23,7 +23,7 @@
   "group-list": [
     "default"
   ],
-  "last-module-event-record-time": 1567410863871,
+  "last-module-event-record-time": 1568289845050,
   "simulator-orientation": false,
   "simulator-resolution": {
     "height": 640,
