@@ -10,6 +10,10 @@ cc.Class({
             default: null,
             type: cc.Label
         },
+        lastChessTag: {
+            default: null,
+            type: cc.Node
+        },
         chessPrefabA: {
             default: null,
             type: cc.Prefab
@@ -436,6 +440,8 @@ cc.Class({
         this.audioChessDown.play();
         self.tagColor = this.gameState;
         this.setChess(self, this.gameState);
+        // 标记最后一步棋
+        this.lastChessTag.setPosition(self.x, self.y)
         // 记录劫点信息
         if (this.jie[this.gameState] != null) {
             this.recordJie.push({
