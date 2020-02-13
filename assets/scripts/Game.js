@@ -2,10 +2,6 @@ cc.Class({
     extends: cc.Component,
 
     properties: {
-        overSprite: {
-            default: null,
-            type: cc.Node,
-        },
         overLabel: {
             default: null,
             type: cc.Label
@@ -50,10 +46,6 @@ cc.Class({
             default: null,
             type: cc.Node
         },
-        UI2: {
-            default: null,
-            type: cc.Node
-        },
         danji: {
             default: true,
             displayName: "是否单机"
@@ -78,6 +70,16 @@ cc.Class({
         audioGameOver: {
             type: cc.AudioSource,
             default: null
+        },
+        dBorderX: {
+            default: 30
+        },
+        dBorderY: {
+            default: 10
+        },
+        w: {
+            default: 30,
+            displayName: "小六边形的边长"
         }
     },
 
@@ -88,7 +90,6 @@ cc.Class({
         this.size = 13; // 棋盘边长与小六边形边长的比值
         this.maxY = 18; // 行数
         this.maxX = 27; // 列数
-        this.overSprite.x = 10000; // 让结束画面位于屏幕外
         this.overLabel.string = '';
         this.labelDaoJiShi.string = '' + this.daojishi;
         this.UiDaoJiShi.color = new cc.Color(0, 125, 255);
@@ -110,41 +111,36 @@ cc.Class({
     // 调整画面宽高
     resize() {
         var cvs = cc.find('Canvas').getComponent(cc.Canvas);
-        this.canvasNode = cvs.node;
-        this.curDR1 = cvs.designResolution;  // Canvas的设计分辨率
-        var dr = this.curDR1;
-        var s = cc.view.getFrameSize();  // 在 native 平台下，它返回全屏视图下屏幕的尺寸
-        var rw = s.width;
-        var rh = s.height;
-        var finalW = rw;
-        var finalH = rh;
+        this.curDR = cc.view.getFrameSize();  // 在 native 平台下，它返回全屏视图下屏幕的尺寸
+        var s = this.curDR;
+        var rw = s.width, rh = s.height;
+        var finalW, finalH;
+        console.log("view size: ", rw, rh);
 
-        console.log("---- cc.view.getFrameSize() ----");
-        console.log("rw =", rw);
-        console.log("rh =", rh);
-        console.log("---- cvs.designResoluntion1 ----");
-        console.log("w =", dr.width);
-        console.log("h =", dr.height);
+        // console.log("---- cc.view.getFrameSize() ----");
+        // console.log("rw =", rw);
+        // console.log("rh =", rh);
 
-        if ((rw / rh) > (dr.width / dr.height)) {
+        if ((rw / rh) > 0.25 * Math.sqrt(3)) {
             // 如果更长，则用定高
-            finalH = dr.height;
+            finalH = s.height;
             finalW = finalH * rw / rh;
+            this.w0 = finalH;
         }
         else {
             // 如果更短，则用定宽
-            finalW = dr.width;
+            finalW = s.width;
             finalH = rh / rw * finalW;
+            this.w0 = finalW;
         }
+        console.log("w0 = ", this.w0);
         cvs.designResolution = cc.size(finalW, finalH);
-        cvs.node.width = finalW;
-        cvs.node.height = finalH;
-        this.curDR2 = cvs.designResolution;  // Canvas调整后的设计分辨率
+        this.curDR = cvs.designResolution;  // Canvas调整后的设计分辨率
 
-        console.log("---- cvs.designResoluntion2 ----");
-        console.log("w =", finalW);
-        console.log("h =", finalH);
-        //cvs.node.emit('resize');
+        // console.log("---- cvs.designResoluntion2 ----");
+        // console.log("w =", finalW);
+        // console.log("h =", finalH);
+        // //cvs.node.emit('resize');
     },
 
     // 求 chess 左方的落子点
@@ -482,43 +478,47 @@ cc.Class({
     // 根据落子点在chessList中的索引值，计算落子点的物理坐标
     ccV2ById(x, y, dx, dy) {
         var w = this.w,
-            cx = dx || (this.dBorderX - this.curDR2.width / 2),
-            cy = dy || (this.dBorderY - this.curDR2.height / 2),
-            xx = Math.sqrt(3) / 2 * w * x + cx,
+            cx = dx || this.dBorderX,
+            cy = dy || this.dBorderY,
+            xx = Math.sqrt(3) * 0.5 * w * x + cx,
             yy = 1.5 * w * y + cy;
         return cc.v2(xx, yy);
     },
 
     onLoad() {
         this.daojishi = Global.timePerState;
-        this.UiDaoJiShi = this.UI2.getChildByName("DaoJiShi");
+        this.UiDaoJiShi = this.UI1.getChildByName("DaoJiShi");
         this.labelDaoJiShi = this.UiDaoJiShi.getComponent(cc.Label);
         this.initializeParams();
         this.resize();
         var self = this,
             sqrt3 = Math.sqrt(3),
-            boardZhanBi = 10 / 11, // 棋盘宽度占画面宽度的比例
-            w0 = this.curDR2.width * boardZhanBi;
-        this.dBorderX = 0.5 * (this.curDR2.width - w0);
-        w0 /= sqrt3;
-        this.dBorderY = 0.5 * this.curDR2.height - w0;
-        this.w = w0 / this.size;
+            boardZhanBi = 0.02; // 棋盘宽度占画面宽度的比例
+        // if (this.w0 == this.curDR.width) {
+        //     this.w0 = this.w0 * boardZhanBi;
+        //     this.dBorderX = 0.5 * (this.curDR.width - this.w0);
+        //     this.w0 = this.w0 / sqrt3;
+        //     this.dBorderY = 0.5 * this.curDR.height - this.w0;
+        //     this.w = this.w0 / this.size;
+        // } else {
+        //     this.w0 = this.w0 * boardZhanBi;
+        //     console.log("w0 = ", this.w0);
+        //     this.dBorderY = 0.5 * (this.curDR.height - this.w0);
+        //     this.w = this.w0 * 2 / this.size;
+        //     this.w0 = this.w0 * sqrt3 * 0.5;
+        //     this.dBorderX = 0.5 * (this.curDR.width - this.w0);
+        // }
         var scaleNode = this.w / 200,
-            dx = this.dBorderX - this.curDR2.width * 0.5,
-            dy = this.dBorderY - this.curDR2.height * 0.5;
+            dx = this.dBorderX,
+            dy = this.dBorderY;
 
         // 调整棋盘边界的位置
-        var borderW = this.size * this.w,
-            nodeBorder = this.node.getChildByName("Border");
-        nodeBorder.setPosition(dx + 0.5 * sqrt3 * borderW, dy + borderW);
+        var borderW = this.size * this.w;
         // 落子点格子与边界的错位修正值
-        dy += 7;
 
         // 设置 UI 的位置等
-        // todo: 考虑屏幕宽度大于高度的情形
-        var yUi = (this.curDR2.height + borderW) * 0.33333;
-        this.UI1.setPosition(0, -yUi);
-        this.UI2.setPosition(0, yUi);
+        // var yUi = (this.curDR.height + borderW) * 0.33333;
+        // this.UI1.setPosition(0, -yUi);
         this.labelDaoJiShi.string = "" + this.daojishi;
 
         // 初始化棋盘上的点，并为每个节点添加事件
@@ -641,6 +641,7 @@ cc.Class({
     // 悔棋 - 按钮点击回调函数
     huiqi() {
         this.audioButton.play();
+        this.lastChessTag.setPosition(1000, 0);
         // case: 单机
         if (this.danji) {
             // 返回上一步的状态
@@ -700,7 +701,6 @@ cc.Class({
         else
             this.overLabel.string = this.strOver + colorHanzi + '获胜';
         this.tagOverLabel = 30; // 显示 30 秒
-        this.overSprite.x = 0;
         this.labelDaoJiShi.string = '';
     },
 
