@@ -65,8 +65,8 @@
   },
   "win32": {
     "REMOTE_SERVER_ROOT": "",
-    "height": 720,
-    "width": 1280
+    "height": 640,
+    "width": 960
   },
   "appBundle": false
 }

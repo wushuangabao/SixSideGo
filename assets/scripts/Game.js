@@ -50,11 +50,6 @@ cc.Class({
             default: true,
             displayName: "是否单机"
         },
-        touchChess: {  // 每一回合落下的棋子
-            default: null,
-            type: cc.Node,
-            visible: false  // 属性窗口不显示
-        },
         audioButton: {
             type: cc.AudioSource,
             default: null
@@ -108,8 +103,8 @@ cc.Class({
         this.recordJie = [];  // 劫点记录
     },
 
-    // 调整画面宽高
-    resize() {
+    // 根据窗口大小更新 Canvas 设计分辨率
+    updateCanvasResolution() {
         var cvs = cc.find('Canvas').getComponent(cc.Canvas);
         this.curDR = cc.view.getFrameSize();  // 在 native 平台下，它返回全屏视图下屏幕的尺寸
         var s = this.curDR;
@@ -141,6 +136,274 @@ cc.Class({
         // console.log("w =", finalW);
         // console.log("h =", finalH);
         // //cvs.node.emit('resize');
+    },
+
+    // 记录自适应布局需要的初始尺寸
+    cacheResponsiveMetrics() {
+        this.boardBaseSize = this.node.getContentSize();
+        this.ui1BaseBounds = this.getChildrenBounds(this.UI1);
+        this.ui2BaseBounds = this.getChildrenBounds(this.UI2);
+    },
+
+    // 整理 UI1 内部按钮与计时器的相对位置
+    arrangeUI1Panel() {
+        let actionButtons = [
+            this.btnTingYiShou,
+            this.btnRenShu,
+            this.btnHuiQi
+        ].filter(function (node) {
+            return !!node;
+        });
+        let centerX = 0;
+        let timerTop = 0;
+        let buttonGap = 18;
+        let stackGap = 26;
+        if (this.UiDaoJiShi) {
+            this.UiDaoJiShi.setPosition(centerX, 0);
+            let timerSize = this.UiDaoJiShi.getContentSize();
+            timerTop = this.UiDaoJiShi.y - timerSize.height * this.UiDaoJiShi.anchorY;
+        }
+        let currentTop = timerTop - stackGap;
+        for (let i = 0; i < actionButtons.length; ++i) {
+            let button = actionButtons[i];
+            let size = button.getContentSize();
+            let y = currentTop - size.height * (1 - button.anchorY);
+            button.setPosition(centerX, y);
+            currentTop = y - size.height * button.anchorY - buttonGap;
+        }
+    },
+
+    // 整理 UI2 内部提示文本与重新开始按钮的相对位置
+    arrangeUI2Panel() {
+        if (!this.UI2 || !this.restartButton || !this.overLabel) {
+            return;
+        }
+        let centerX = 0;
+        let infoNode = this.overLabel.node;
+        let infoGap = 22;
+        infoNode.setPosition(centerX, 0);
+        let infoSize = infoNode.getContentSize();
+        let restartSize = this.restartButton.getContentSize();
+        let y = infoNode.y - infoSize.height * infoNode.anchorY - infoGap - restartSize.height * (1 - this.restartButton.anchorY);
+        this.restartButton.setPosition(centerX, y);
+    },
+
+    // 计算一个节点直属子节点形成的包围盒
+    getChildrenBounds(node) {
+        let hasChild = false;
+        let left = 0, right = 0, top = 0, bottom = 0;
+        for (let i = 0; i < node.childrenCount; ++i) {
+            let child = node.children[i];
+            if (!child.active) {
+                continue;
+            }
+            let size = child.getContentSize();
+            let childLeft = child.x - size.width * child.anchorX;
+            let childRight = child.x + size.width * (1 - child.anchorX);
+            let childBottom = child.y - size.height * child.anchorY;
+            let childTop = child.y + size.height * (1 - child.anchorY);
+            if (!hasChild) {
+                left = childLeft;
+                right = childRight;
+                bottom = childBottom;
+                top = childTop;
+                hasChild = true;
+            } else {
+                left = Math.min(left, childLeft);
+                right = Math.max(right, childRight);
+                bottom = Math.min(bottom, childBottom);
+                top = Math.max(top, childTop);
+            }
+        }
+        if (!hasChild) {
+            let size = node.getContentSize();
+            left = -size.width * node.anchorX;
+            right = size.width * (1 - node.anchorX);
+            bottom = -size.height * node.anchorY;
+            top = size.height * (1 - node.anchorY);
+        }
+        return {
+            left: left,
+            right: right,
+            bottom: bottom,
+            top: top,
+            width: right - left,
+            height: top - bottom
+        };
+    },
+
+    // 计算 UI 组缩放后可用的宽高
+    getScaledSize(bounds, scale) {
+        return {
+            width: bounds.width * scale,
+            height: bounds.height * scale
+        };
+    },
+
+    // 计算右侧栏布局
+    calculateSideLayout(canvasSize, margin, gap) {
+        let columnBaseWidth = Math.max(this.ui1BaseBounds.width, this.ui2BaseBounds.width);
+        let uiScale = Math.min(
+            1,
+            (canvasSize.height - margin * 2 - 16) / (this.ui1BaseBounds.height + this.ui2BaseBounds.height),
+            (canvasSize.width * 0.32) / columnBaseWidth
+        );
+        if (uiScale <= 0) {
+            return null;
+        }
+        let ui1Size = this.getScaledSize(this.ui1BaseBounds, uiScale);
+        let ui2Size = this.getScaledSize(this.ui2BaseBounds, uiScale);
+        let panelGap = Math.max(12, margin * 0.6);
+        let columnWidth = Math.max(ui1Size.width, ui2Size.width);
+        let sideInnerPadding = Math.max(12, margin);
+        let sideAreaWidth = Math.max(columnWidth + sideInnerPadding * 2, canvasSize.width * 0.36);
+        let boardWidth = canvasSize.width - margin * 2 - gap - sideAreaWidth;
+        let boardHeight = canvasSize.height - margin * 2;
+        if (boardWidth <= 0 || boardHeight <= 0) {
+            return null;
+        }
+        let boardScale = Math.min(
+            boardWidth / this.boardBaseSize.width,
+            boardHeight / this.boardBaseSize.height
+        );
+        if (boardScale <= 0) {
+            return null;
+        }
+        let boardLeft = -canvasSize.width * 0.5 + margin;
+        let boardRight = boardLeft + boardWidth;
+        let panelLeft = boardRight + gap;
+        let panelRight = panelLeft + sideAreaWidth;
+        let panelCenterX = (panelLeft + panelRight) * 0.5;
+        return {
+            boardScale: boardScale,
+            uiScale: uiScale,
+            ui2Scale: uiScale,
+            boardPos: cc.v2(
+                boardLeft + boardWidth * 0.5,
+                0
+            ),
+            ui1Pos: cc.v2(
+                panelCenterX,
+                canvasSize.height * 0.5 - margin - this.ui1BaseBounds.top * uiScale
+            ),
+            ui2Pos: cc.v2(
+                panelCenterX,
+                canvasSize.height * 0.5 - margin - ui1Size.height - panelGap - this.ui2BaseBounds.top * uiScale
+            )
+        };
+    },
+
+    // 计算顶部布局
+    calculateTopLayout(canvasSize, margin, gap) {
+        let columnBaseWidth = Math.max(this.ui1BaseBounds.width, this.ui2BaseBounds.width);
+        let panelGap = Math.max(12, margin * 0.6);
+        let uiScale = Math.min(
+            1,
+            (canvasSize.width - margin * 2) / columnBaseWidth,
+            (canvasSize.height * 0.16) / this.ui1BaseBounds.height,
+            (canvasSize.height * 0.16) / this.ui2BaseBounds.height
+        );
+        if (uiScale <= 0) {
+            return null;
+        }
+        let ui1Size = this.getScaledSize(this.ui1BaseBounds, uiScale);
+        let ui2Size = this.getScaledSize(this.ui2BaseBounds, uiScale);
+        let boardWidth = canvasSize.width - margin * 2;
+        let boardHeight = canvasSize.height - margin * 2 - ui1Size.height - ui2Size.height - panelGap * 2;
+        if (boardWidth <= 0 || boardHeight <= 0) {
+            return null;
+        }
+        let boardScale = Math.min(
+            boardWidth / this.boardBaseSize.width,
+            boardHeight / this.boardBaseSize.height
+        );
+        if (boardScale <= 0) {
+            return null;
+        }
+        return {
+            boardScale: boardScale,
+            uiScale: uiScale,
+            ui2Scale: uiScale,
+            boardPos: cc.v2(
+                0,
+                (ui2Size.height - ui1Size.height) * 0.5
+            ),
+            ui1Pos: cc.v2(
+                0,
+                canvasSize.height * 0.5 - margin - this.ui1BaseBounds.top * uiScale
+            ),
+            ui2Pos: cc.v2(
+                0,
+                -canvasSize.height * 0.5 + margin - this.ui2BaseBounds.bottom * uiScale
+            )
+        };
+    },
+
+    // 根据窗口大小自适应布局棋盘、UI1 和 UI2
+    applyResponsiveLayout() {
+        if (!this.boardBaseSize || !this.ui1BaseBounds || !this.ui2BaseBounds) {
+            return;
+        }
+        let visibleSize = cc.view.getVisibleSize();
+        let canvasSize = cc.size(visibleSize.width, visibleSize.height);
+        let margin = Math.max(8, Math.min(canvasSize.width, canvasSize.height) * 0.03);
+        let gap = Math.max(8, margin * 0.5);
+        let sideLayout = this.calculateSideLayout(canvasSize, margin, gap);
+        let topLayout = this.calculateTopLayout(canvasSize, margin, gap);
+        let layout = sideLayout;
+        if (!layout || (topLayout && topLayout.boardScale > layout.boardScale)) {
+            layout = topLayout;
+        }
+        if (!layout) {
+            return;
+        }
+        this.node.setScale(layout.boardScale);
+        this.node.setPosition(layout.boardPos);
+        this.UI1.setScale(layout.uiScale);
+        this.UI1.setPosition(layout.ui1Pos);
+        this.UI2.setScale(layout.ui2Scale);
+        this.UI2.setPosition(layout.ui2Pos);
+        this.refreshLastChessTag();
+    },
+
+    // 调整画面和布局
+    resize() {
+        this.updateCanvasResolution();
+        this.applyResponsiveLayout();
+    },
+
+    registerResizeHandler() {
+        this.onViewResize = function () {
+            this.resize();
+        }.bind(this);
+        if (cc.view.setResizeCallback) {
+            cc.view.setResizeCallback(this.onViewResize);
+        }
+    },
+
+    onDestroy() {
+        if (cc.view.setResizeCallback) {
+            cc.view.setResizeCallback(null);
+        }
+    },
+
+    // 根据当前最后一手刷新黄色标记位置
+    refreshLastChessTag() {
+        if (!this.lastChessTag) {
+            return;
+        }
+        let len = this.recordList.length;
+        if (len <= 0) {
+            this.lastChessTag.active = false;
+            return;
+        }
+        let chess = this.chessList[this.recordList[len - 1]];
+        if (!chess) {
+            this.lastChessTag.active = false;
+            return;
+        }
+        this.lastChessTag.active = true;
+        this.lastChessTag.setPosition(chess.x, chess.y);
     },
 
     // 求 chess 左方的落子点
@@ -283,46 +546,57 @@ cc.Class({
         return ok;
     },
 
-    // 判断是否可以落子
-    canPutChess(color, chess) {
-        if (arguments.length >= 2) {
-            var self = chess;
+    // 获取某个点位相连的 3 个邻点
+    getNeighbors(chess) {
+        return [
+            this.upDownOf(chess),
+            this.leftOf(chess),
+            this.rightOf(chess)
+        ];
+    },
+
+    // 收集同色连通块，并判断整块是否还有气
+    collectGroupAndCheckLiberty(color, chess) {
+        this.listTagNum = [];
+        if (!chess || chess.tagColor != color) {
+            return false;
         }
-        else {
-            var self = this.touchChess;
-            if (self.tagColor != 'null')
-                return false;
-            this.listTagNum = new Array();
-        }
-        var tagNum = self.tagNum,
-            tagColor = self.tagColor,
-            list = this.listTagNum;
-        // 当 self 没有归入 list
-        if (list.indexOf(tagNum) == -1) {
-            // 当 self 的颜色不同于当前执行判断的颜色
-            if (tagColor != color && arguments.length >= 2) {
-                if (tagColor == 'null')
-                    return true;
-                else return false;
+        let stack = [chess];
+        let visited = {};
+        let hasLiberty = false;
+        while (stack.length > 0) {
+            let current = stack.pop();
+            if (!current || current.tagColor != color) {
+                continue;
             }
-            var x = tagNum % this.maxX,
-                y = Math.floor(tagNum / this.maxX),
-                b1 = true, b2 = true, b3 = true;
-            // 将 self 归入 list
-            list.push(tagNum);
-            // 判断三个方向
-            b1 = this.canPutChess(color, this.upDownOf(self, x, y));
-            b2 = this.canPutChess(color, this.leftOf(self, x, y));
-            b3 = this.canPutChess(color, this.rightOf(self, x, y));
-            if (!b1 && !b2 && !b3)
-                return false;
-            else return true;
+            let tagNum = current.tagNum;
+            if (visited[tagNum]) {
+                continue;
+            }
+            visited[tagNum] = true;
+            this.listTagNum.push(tagNum);
+            let neighbors = this.getNeighbors(current);
+            for (let i = 0; i < neighbors.length; ++i) {
+                let neighbor = neighbors[i];
+                if (!neighbor || !neighbor.tagColor) {
+                    continue;
+                }
+                if (neighbor.tagColor == 'null') {
+                    hasLiberty = true;
+                }
+                else if (neighbor.tagColor == color && !visited[neighbor.tagNum]) {
+                    stack.push(neighbor);
+                }
+            }
         }
-        else return false;
+        return hasLiberty;
     },
 
     // 判断 chess 及其周围同色棋子的死活。tiZou 表示死子是否提走。
     judgeDead(chess, color, tiZou) {
+        if (!chess) {
+            return false;
+        }
         if (chess.tagColor != color) {
             if (chess.tagColor == 'null')
                 return true;
@@ -331,8 +605,7 @@ cc.Class({
                 return false;
             }
         }
-        this.listTagNum = new Array();
-        var isAlive = this.canPutChess(color, chess);
+        var isAlive = this.collectGroupAndCheckLiberty(color, chess);
         if (!isAlive && tiZou) {
             this.removeDead(color);
         }
@@ -424,10 +697,10 @@ cc.Class({
             this.jie.tag = 0;
             this.putChess(self);
         } else {
-            this.touchChess = self;
-            self.tagColor = 'null';
-            if (this.canPutChess(this.gameState))
+            if (this.collectGroupAndCheckLiberty(this.gameState, self))
                 this.putChess(self);
+            else
+                self.tagColor = 'null';
         }
     },
 
@@ -436,8 +709,6 @@ cc.Class({
         this.audioChessDown.play();
         self.tagColor = this.gameState;
         this.setChess(self, this.gameState);
-        // 标记最后一步棋
-        this.lastChessTag.setPosition(self.x, self.y)
         // 记录劫点信息
         if (this.jie[this.gameState] != null) {
             this.recordJie.push({
@@ -448,6 +719,7 @@ cc.Class({
         }
         // 记录行棋位置
         this.recordList.push(self.tagNum);
+        this.refreshLastChessTag();
         this.changeGameState();
     },
 
@@ -489,8 +761,14 @@ cc.Class({
         this.daojishi = Global.timePerState;
         this.UiDaoJiShi = this.UI1.getChildByName("DaoJiShi");
         this.labelDaoJiShi = this.UiDaoJiShi.getComponent(cc.Label);
+        this.btnRenShu = this.UI1.getChildByName("BtnRenShu");
+        this.btnHuiQi = this.UI1.getChildByName("BtnHuiQi");
+        this.btnTingYiShou = this.UI1.getChildByName("BtnTingYiShou");
+        this.UI2 = this.overLabel.node.parent;
+        this.restartButton = this.UI2.getChildByName("BtnRestart");
         this.initializeParams();
-        this.resize();
+        this.lastChessTag.active = false;
+        this.updateCanvasResolution();
         var self = this,
             sqrt3 = Math.sqrt(3),
             boardZhanBi = 0.02; // 棋盘宽度占画面宽度的比例
@@ -552,27 +830,36 @@ cc.Class({
                 }
             }
         }
+        this.arrangeUI1Panel();
+        this.arrangeUI2Panel();
+        this.cacheResponsiveMetrics();
+        this.resize();
+        this.registerResizeHandler();
     },
 
     // 判断输赢
     judgeWinner() {
-        var cntRed = 0, cntBlue = 0, cntNull = 0;
-        this.listTagNum = [];  // 清空记录
+        var cntRed = 0, cntBlue = 0;
+        let visitedNull = {};
         for (var i = 0; i < this.chessList.length; ++i) {
             let chess = this.chessList[i];
-            if (chess) {
-                // todo: 清除死子
-                // if (chess.tagColor == 'red') {
-                // }
-                // else if (chess.tagColor == 'blue') {
-                // }
-                // 计算空地大小，并判断其归属 （todo: 公共用地的划分）
-                let colorEnclosure = this.detectEnclosure(chess);
-                if (colorEnclosure == 'red') {
-                    cntRed++;
+            if (!chess || !chess.tagColor) {
+                continue;
+            }
+            if (chess.tagColor == 'red') {
+                cntRed++;
+            }
+            else if (chess.tagColor == 'blue') {
+                cntBlue++;
+            }
+            else if (!visitedNull[chess.tagNum]) {
+                let region = this.collectEmptyRegion(chess, visitedNull);
+                let owner = this.getRegionOwner(region.borderColors);
+                if (owner == 'red') {
+                    cntRed += region.points.length;
                 }
-                else if (colorEnclosure == 'blue') {
-                    cntBlue++;
+                else if (owner == 'blue') {
+                    cntBlue += region.points.length;
                 }
             }
         }
@@ -583,31 +870,49 @@ cc.Class({
             return 'blue';
     },
 
-    // 判断某块空地的归属
-    detectEnclosure(chess) {
-        if (this.listTagNum.indexOf(chess.tagNum) != -1)
-            return false;  // 表示这个点已经检测过
-        if (chess.tagColor == 'null') {
-            if (chess.tagNum == 13)
-                console.log(13);
-            this.listTagNum.push(chess.tagNum);
-            // 往三个方向检测
-            let color1 = this.detectEnclosure(this.upDownOf(chess));
-            if (color1 == 'red' || color1 == 'blue') {
-                let color2 = this.detectEnclosure(this.leftOf(chess));
-                if (color1 == color2) {
-                    if (this.detectEnclosure(this.rightOf(chess)) == color1) {
-                        return color1;  // 表示属于 color1 (red or blue)
+    // 收集一整块相连空地，并记录其边界接触到的棋子颜色
+    collectEmptyRegion(chess, visitedNull) {
+        let stack = [chess];
+        let points = [];
+        let borderColors = {};
+        while (stack.length > 0) {
+            let current = stack.pop();
+            if (!current || current.tagColor != 'null' || visitedNull[current.tagNum]) {
+                continue;
+            }
+            visitedNull[current.tagNum] = true;
+            points.push(current.tagNum);
+            let neighbors = this.getNeighbors(current);
+            for (let i = 0; i < neighbors.length; ++i) {
+                let neighbor = neighbors[i];
+                if (!neighbor || !neighbor.tagColor) {
+                    continue;
+                }
+                if (neighbor.tagColor == 'null') {
+                    if (!visitedNull[neighbor.tagNum]) {
+                        stack.push(neighbor);
                     }
                 }
+                else {
+                    borderColors[neighbor.tagColor] = true;
+                }
             }
-            return 'null';  // 表示没有归属
-        } else if (chess.tagColor == 'red') {
-            return 'red';  // 表示属于 red
         }
-        else if (chess.tagColor == 'blue') {
-            return 'blue';  // 表示属于 blue
+        return {
+            points: points,
+            borderColors: borderColors
+        };
+    },
+
+    // 根据空地边界颜色判断归属
+    getRegionOwner(borderColors) {
+        if (borderColors.red && !borderColors.blue) {
+            return 'red';
         }
+        else if (!borderColors.red && borderColors.blue) {
+            return 'blue';
+        }
+        return 'null';
     },
 
     // 根据 this.recordJie 和 id 设置劫点
@@ -641,7 +946,6 @@ cc.Class({
     // 悔棋 - 按钮点击回调函数
     huiqi() {
         this.audioButton.play();
-        this.lastChessTag.setPosition(1000, 0);
         // case: 单机
         if (this.danji) {
             // 返回上一步的状态
@@ -654,6 +958,7 @@ cc.Class({
             this.resetJie(id);
             this.resetDead(id);
             this.changeGameState();
+            this.refreshLastChessTag();
         }
         // case: 联机
         else {
